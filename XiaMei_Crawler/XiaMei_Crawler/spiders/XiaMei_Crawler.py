@@ -6,6 +6,7 @@ import urllib
 import sys
 import time
 import urllib2
+#from XiaMei_Crawler.items import XiaMeiPhotoAlbum
 from ..items import XiaMeiPhotoAlbum
 from scrapy.selector import Selector
 from scrapy.http import HtmlResponse,Request
@@ -17,6 +18,7 @@ g_main_host = "https://www.nvshens.com"
 g_girl_identifier = "21501"
 
 
+#主目录
 g_export_path_root = os.getcwd()+"/export_root"
 
 
@@ -24,8 +26,11 @@ g_export_path_root = os.getcwd()+"/export_root"
 if not os.path.exists(g_export_path_root):
     os.makedirs(g_export_path_root)
 
+#相片专辑
 g_photoAlbumList = []
 
+#是否导出相片
+g_export_photo = True
 
 def save_photo(response, album):
 
@@ -74,15 +79,114 @@ class XiaMei_spider(scrapy.spiders.Spider):
 
     start_urls=[ one_girl_url ]
 
+    def __init__(self, girl_id=None, *args, **kwargs):
+        g_girl_identifier = girl_id
+        if g_girl_identifier == None: 
+            print("AX ---> please input girl id.")
+            exit(0)
+        print("girl id :%s" % (g_girl_identifier))
     
+
+
+    #解析
+    def parse(self, response):
+        #current_url=response.url    #爬取时请求的url
+        #body=response.body  #返回的html
+        #unicode_body=response.body_as_unicode() #返回的html unicode      
+
+        hxs=Selector(response) 
+
+
+        items=hxs.xpath('//a[@class="caption"]/@href').extract() 
+        print("item len : %s " % len(items))
+        tmp_cnt = 0;
+        for i in range(len(items)):#遍历div个数
+            #需要访问的下个url, Examples: https://www.nvshens.com/g/22942/
+            album_url = g_main_host + items[i]
+            print("AX --> request album url : "+album_url)
+            yield Request(url=album_url, callback=self.parse_album)
+
+            #debug 只处理一个目录的
+            if(tmp_cnt == 0):
+                break;
+
+            tmp_cnt = tmp_cnt + 1
+            #print(items[i].split(" ")[1])
+
+    def parse_album(self, response):
+        first_url=response.url    #爬取时请求的url
+        print("first_page:"+first_url)
+        hxs=Selector(response) 
+
+
+        album_name = hxs.xpath('//*[@id="htilte"]').extract()[0]
+        album_desc = hxs.xpath('//*[@id="ddesc"]').extract()[0]
+        #album_photo_num = hxs.xpath('//*[@id="dinfo"]/span').extract()
+        album_desc_info = hxs.xpath('//*[@id="dinfo"]').extract()[0]
+
+
+        #print(album_name)
+        #print(album_desc)
+        #print(album_desc_info)
+
+        photoAlbum = XiaMeiPhotoAlbum()
+        photoAlbum['photos'] = []
+        photoAlbum['create_time'] = time.time()
+
+        photoAlbum['album_name'] = get_html_content(album_name)
+        #print(photoAlbum['album_name'])
+        photoAlbum['album_desc'] = get_html_content(album_desc)
+        #print(photoAlbum['album_desc'])
+        photoAlbum['album_desc_info'] = get_html_content(album_desc_info)
+
+        #print(photoAlbum['album_desc_info'])
+
+        #print("AX ---> org id:")
+        #print(id(photoAlbum))
+        save_photo(response, photoAlbum)
+
+        #print("AX ---> next page...")
+        all_next_page = hxs.xpath('//*[@id="pages"]/a/@href').extract()
+        next_page = all_next_page[-1]
+        next_page_url = g_main_host+next_page
+        #print("first next page")
+        #print(next_page_url)
+        yield Request(url=next_page_url, meta={'album':photoAlbum, 'first':first_url}, callback=self.parse_album_next_pages_new)
+        g_photoAlbumList.append(photoAlbum)
+
+    def parse_album_next_pages_new(self, response):
+        photoAlbum = response.meta['album']
+        save_photo(response, photoAlbum)
+
+        first_url = response.meta['first']
+        all_next_page = response.xpath('//*[@id="pages"]/a/@href').extract()
+        next_page = all_next_page[-1]
+        next_page_url = g_main_host+next_page
+        #print( "find next page" )
+        #print(first_url)
+        #print( next_page_url )
+        if ".html" in next_page_url:
+            #print(next_page_url)
+            yield Request(url=next_page_url, meta={'album':photoAlbum, 'first':first_url}, callback=self.parse_album_next_pages_new)
+
+    def parse_album_next_pages(self, response):
+
+        photoAlbum = response.meta['album']
+        save_photo(response, photoAlbum)
+
     def closed(self, reson):
+        if g_export_photo == False:
+            print("AX dont export photos..")
+            return
+
         print("AX closed --> album len %s" % (len(g_photoAlbumList)))
 
         album_index = 1
         for album in g_photoAlbumList:
 
             #创建目录
-            album_name = g_export_path_root + "/" + str(album_index)
+            album_number_str = str(album_index).zfill(3)
+            album_name = g_export_path_root + "/" +str(g_girl_identifier)  +  "/"+album_number_str +"_"+ album["album_name"]
             album_index = album_index + 1
 
             if not os.path.exists( album_name ):
@@ -118,103 +222,5 @@ class XiaMei_spider(scrapy.spiders.Spider):
             for photo_url in album['photos']:
                 print(photo_url)
             """
-
-
-    #该函数名不能改变，因为Scrapy源码中默认callback函数的函数名就是parse
-    def parse(self, response):
-        current_url=response.url    #爬取时请求的url
-        body=response.body  #返回的html
-        unicode_body=response.body_as_unicode() #返回的html unicode      
-
-        hxs=Selector(response) 
-
-        items=hxs.xpath('//a[@class="caption"]/@href').extract() 
-        print("item len : %s " % len(items))
-        tmp_cnt = 0;
-        for i in range(len(items)):#遍历div个数
-            #需要访问的下个url, Examples: https://www.nvshens.com/g/22942/
-            album_url = g_main_host + items[i]
-            print("AX --> request album url : "+album_url)
-            yield Request(url=album_url, callback=self.parse_album)
-
-            #if(tmp_cnt == 0):
-            #    break;
-
-            tmp_cnt = tmp_cnt + 1
-            #print(items[i].split(" ")[1])
-
-
-
-    def parse_album(self, response):
-        current_url=response.url    #爬取时请求的url
-        hxs=Selector(response) 
-
-
-        album_name = hxs.xpath('//*[@id="htilte"]').extract()[0]
-        album_desc = hxs.xpath('//*[@id="ddesc"]').extract()[0]
-        #album_photo_num = hxs.xpath('//*[@id="dinfo"]/span').extract()
-        album_desc_info = hxs.xpath('//*[@id="dinfo"]').extract()[0]
-
-
-        #print(album_name)
-        #print(album_desc)
-        #print(album_desc_info)
-
-        photoAlbum = XiaMeiPhotoAlbum()
-        photoAlbum['photos'] = []
-        photoAlbum['create_time'] = time.time()
-
-
- 
-        photoAlbum['album_name'] = get_html_content(album_name)
-        #print(photoAlbum['album_name'])
-        photoAlbum['album_desc'] = get_html_content(album_desc)
-        #print(photoAlbum['album_desc'])
-        photoAlbum['album_desc_info'] = get_html_content(album_desc_info)
-
-
-        #print(photoAlbum['album_desc_info'])
-
-        #print("AX ---> org id:")
-        #print(id(photoAlbum))
-        save_photo(response, photoAlbum)
-
-        page_start_org = hxs.xpath('//*[@id="pages"]/a/@href').extract()[1]
-        temp = page_start_org.split("/")[-1]
-        page_template = page_start_org.replace(temp,"")
-        all_pages = []
-        #print("AX --> page _template ....")
-        for i in range(2,50):
-            next_page_url = g_main_host+page_template+str(i)+".html"
-            #print(next_page_url)
-            all_pages.append(next_page_url)
-
-        for url in all_pages:
-            yield Request(url=url, meta={'album':photoAlbum, 'first':current_url}, callback=self.parse_album_next_pages)
-
-
-        #获取所有页
-        """
-        all_pages = hxs.xpath('//*[@id="pages"]/a/@href').extract()
-        for i in range(1, len(all_pages)):
-            next_page_url = g_main_host+all_pages[i]
-            #print(" process next pages :"+next_page_url)
-            yield Request(url=next_page_url, meta={'album':photoAlbum}, callback=self.parse_album_next_pages)
-        """
-
-        g_photoAlbumList.append(photoAlbum)            
-
-
-        """
-        print(len(photoAlbum['photos']))
-        for photo_url in photoAlbum['photos']:
-            print(photo_url)
-        """
-
-
-    def parse_album_next_pages(self, response):
-
-        photoAlbum = response.meta['album']
-        save_photo(response, photoAlbum)
 
 
