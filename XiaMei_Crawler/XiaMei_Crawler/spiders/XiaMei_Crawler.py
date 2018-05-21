@@ -107,8 +107,8 @@ class XiaMei_spider(scrapy.spiders.Spider):
             yield Request(url=album_url, callback=self.parse_album)
 
             #debug 只处理一个目录的
-            if(tmp_cnt == 0):
-                break;
+            #if(tmp_cnt == 0):
+            #    break;
 
             tmp_cnt = tmp_cnt + 1
             #print(items[i].split(" ")[1])
