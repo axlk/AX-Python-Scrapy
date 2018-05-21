@@ -65,7 +65,8 @@ def get_page_source(url):
         response = urllib2.urlopen(req)
         page_source = response.read()
         return page_source
-    except HTTPError:
+    except BaseException:
+        print("AX ERROR :"+str(url))
         return 0
 
 
@@ -75,9 +76,7 @@ class XiaMei_spider(scrapy.spiders.Spider):
 
     allowed_domains=["nvshens.com"]    #搜索的域名范围，也就是爬虫的约束区域，规定爬虫只爬取这个域名下的网页
 
-    one_girl_url = os.path.join( g_main_host, "girl", g_girl_identifier, "album/",  )
-
-    start_urls=[ one_girl_url ]
+    
 
     def __init__(self, girl_id=None, *args, **kwargs):
         g_girl_identifier = girl_id
@@ -85,8 +84,8 @@ class XiaMei_spider(scrapy.spiders.Spider):
             print("AX ---> please input girl id.")
             exit(0)
         print("girl id :%s" % (g_girl_identifier))
-    
-
+        one_girl_url = os.path.join( g_main_host, "girl", g_girl_identifier, "album/",  )
+        self.start_urls=[ one_girl_url ]    
 
     #解析
     def parse(self, response):
@@ -185,7 +184,8 @@ class XiaMei_spider(scrapy.spiders.Spider):
         for album in g_photoAlbumList:
 
             #创建目录
-            album_number_str = str(album_index).zfill(3)
+            #album_number_str = str(album_index).zfill(3)
+            album_number_str = ""
             album_name = g_export_path_root + "/" +str(g_girl_identifier)  +  "/"+album_number_str +"_"+ album["album_name"]
             album_index = album_index + 1
 
