@@ -76,6 +76,7 @@ class XiaMei_spider(scrapy.spiders.Spider):
     allowed_domains=["nvshens.com"]    #搜索的域名范围，也就是爬虫的约束区域，规定爬虫只爬取这个域名下的网页
 
     g_girl_identifier = 0
+    f_girl_name = 0
 
     def __init__(self, girl_id=None, *args, **kwargs):
         self.g_girl_identifier = girl_id
@@ -83,7 +84,7 @@ class XiaMei_spider(scrapy.spiders.Spider):
             print("AX ---> please input girl id.")
             exit(0)
         print("girl id :%s" % (self.g_girl_identifier))
-
+        
         one_girl_url = os.path.join( g_main_host, "girl",self. g_girl_identifier  )
         print("one_girl_url:"+one_girl_url)
         self.start_urls=[ one_girl_url ]    
@@ -92,8 +93,11 @@ class XiaMei_spider(scrapy.spiders.Spider):
     def parse(self, response):
         start_url =response.url    #爬取时请求的url
         tmp = True
-
+        print("start url :"+start_url)
         total_url = response.xpath('//*[@class="archive_more"]/a/@href').extract_first()
+        self.f_girl_name = response.xpath('//*[@id="post"]/div[2]/div/div[1]/h1/text()').extract_first()
+        print("girl_name:"+(self.f_girl_name))
+        
         if total_url == None:
             print("No Total Page")
             yield Request(url = start_url, callback=self.parse_album_url_one)
@@ -118,8 +122,8 @@ class XiaMei_spider(scrapy.spiders.Spider):
             print("AX --> one page request album url : "+album_url)
             yield Request(url=album_url, callback=self.parse_album)
             #debug 只处理一个目录的
-            if(tmp_cnt == 0):
-                break;
+            #if(tmp_cnt == 0):
+            #    break;
 
             tmp_cnt = tmp_cnt + 1
 
@@ -213,7 +217,7 @@ class XiaMei_spider(scrapy.spiders.Spider):
             #创建目录
             #album_number_str = str(album_index).zfill(3)
             album_number_str = ""
-            album_name = g_export_path_root + "/" +str(self.g_girl_identifier)  +  "/"+album_number_str +"_"+ album["album_name"]
+            album_name = g_export_path_root + "/" +str(self.g_girl_identifier) + "_" + self.f_girl_name  +  "/"+album_number_str +"_"+ album["album_name"]
             album_index = album_index + 1
 
             if not os.path.exists( album_name ):
