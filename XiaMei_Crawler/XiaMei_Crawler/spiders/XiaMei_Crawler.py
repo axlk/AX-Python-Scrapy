@@ -15,7 +15,6 @@ print(os.getcwd())
 
 #test = "https://www.nvshens.com/girl/21501/album/"
 g_main_host = "https://www.nvshens.com"
-g_girl_identifier = "21501"
 
 
 #主目录
@@ -76,27 +75,59 @@ class XiaMei_spider(scrapy.spiders.Spider):
 
     allowed_domains=["nvshens.com"]    #搜索的域名范围，也就是爬虫的约束区域，规定爬虫只爬取这个域名下的网页
 
-    
+    g_girl_identifier = 0
 
     def __init__(self, girl_id=None, *args, **kwargs):
-        g_girl_identifier = girl_id
-        if g_girl_identifier == None: 
+        self.g_girl_identifier = girl_id
+        if self.g_girl_identifier == None: 
             print("AX ---> please input girl id.")
             exit(0)
-        print("girl id :%s" % (g_girl_identifier))
-        one_girl_url = os.path.join( g_main_host, "girl", g_girl_identifier, "album/",  )
+        print("girl id :%s" % (self.g_girl_identifier))
+
+        one_girl_url = os.path.join( g_main_host, "girl",self. g_girl_identifier  )
+        print("one_girl_url:"+one_girl_url)
         self.start_urls=[ one_girl_url ]    
 
     #解析
     def parse(self, response):
-        #current_url=response.url    #爬取时请求的url
-        #body=response.body  #返回的html
-        #unicode_body=response.body_as_unicode() #返回的html unicode      
+        start_url =response.url    #爬取时请求的url
+        tmp = True
 
+        total_url = response.xpath('//*[@class="archive_more"]/a/@href').extract_first()
+        if total_url == None:
+            print("No Total Page")
+            yield Request(url = start_url, callback=self.parse_album_url_one)
+        else:
+
+            total_url = g_main_host + total_url
+            print(" Total_url :"+total_url)
+            yield Request(url = total_url, callback=self.parse_album_url_total)
+        if tmp:
+            print("Temp Return...")
+            return
+
+    #没有全部的
+    def parse_album_url_one(self, response):
         hxs=Selector(response) 
 
+        items=hxs.xpath('//*[@class="igalleryli_div"]/a/@href').extract() 
+        print("item len : %s " % len(items))
+        tmp_cnt = 0;
+        for i in range(len(items)):#遍历div个数
+            album_url = g_main_host + items[i]
+            print("AX --> one page request album url : "+album_url)
+            yield Request(url=album_url, callback=self.parse_album)
+            #debug 只处理一个目录的
+            if(tmp_cnt == 0):
+                break;
 
-        items=hxs.xpath('//a[@class="caption"]/@href').extract() 
+            tmp_cnt = tmp_cnt + 1
+
+    #有全部的
+    def parse_album_url_total(self, response):
+        hxs=Selector(response) 
+
+        items=hxs.xpath('//*[@class="igalleryli_div"]/a/@href').extract() 
         print("item len : %s " % len(items))
         tmp_cnt = 0;
         for i in range(len(items)):#遍历div个数
@@ -168,10 +199,6 @@ class XiaMei_spider(scrapy.spiders.Spider):
             #print(next_page_url)
             yield Request(url=next_page_url, meta={'album':photoAlbum, 'first':first_url}, callback=self.parse_album_next_pages_new)
 
-    def parse_album_next_pages(self, response):
-
-        photoAlbum = response.meta['album']
-        save_photo(response, photoAlbum)
 
     def closed(self, reson):
         if g_export_photo == False:
@@ -186,7 +213,7 @@ class XiaMei_spider(scrapy.spiders.Spider):
             #创建目录
             #album_number_str = str(album_index).zfill(3)
             album_number_str = ""
-            album_name = g_export_path_root + "/" +str(g_girl_identifier)  +  "/"+album_number_str +"_"+ album["album_name"]
+            album_name = g_export_path_root + "/" +str(self.g_girl_identifier)  +  "/"+album_number_str +"_"+ album["album_name"]
             album_index = album_index + 1
 
             if not os.path.exists( album_name ):
