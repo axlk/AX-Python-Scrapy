@@ -41,7 +41,16 @@ def save_photo(response, album):
     photos = hxs.xpath('//*[@id="hgallery"]/img/@src').extract()
     #print("AX --> photo size : %s" % len(photos))
     for i in range(len(photos)):
-        album['photos'].append(photos[i])
+        photo_small = photos[i]
+        
+        photo_org = ""
+        if photo_small.rfind("/s") == -1:
+            photo_org = photo_small
+        else:
+            photo_start = photo_small[0:photo_small.rfind("/s")]
+            photo_org = photo_start + "/" + photo_small.split("/")[-1]
+        
+        album['photos'].append(photo_org)
         #print(photos[i])
 
     #print(len(album['photos']))
