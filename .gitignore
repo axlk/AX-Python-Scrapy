@@ -1,1 +1,3 @@
-/XiaMei_Crawler/XiaMei_Crawler/export_root/
+*/export_root/
+*.pyc
+*.DS_Store
